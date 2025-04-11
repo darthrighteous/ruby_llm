@@ -25,22 +25,24 @@ module RubyLLM
                    to: :to_llm
         end
 
-        def acts_as_message(chat_class: 'Chat', tool_call_class: 'ToolCall', touch_chat: false) # rubocop:disable Metrics/MethodLength
+        def acts_as_message(chat_class: 'Chat', chat_foreign_key: 'chat_id', tool_call_class: 'ToolCall') # rubocop:disable Metrics/MethodLength
           include MessageMethods
 
           @chat_class = chat_class.to_s
-          @tool_call_class = tool_call_class.to_s
+          belongs_to :chat, class_name: @chat_class, foreign_key: chat_foreign_key
 
-          belongs_to :chat, class_name: @chat_class, touch: touch_chat
-          has_many :tool_calls, class_name: @tool_call_class, dependent: :destroy
+          if RubyLLM.config.use_tool_calls
+            @tool_call_class = tool_call_class.to_s
+            has_many :tool_calls, class_name: @tool_call_class, dependent: :destroy
 
-          belongs_to :parent_tool_call,
-                     class_name: @tool_call_class,
-                     foreign_key: 'tool_call_id',
-                     optional: true,
-                     inverse_of: :result
+            belongs_to :parent_tool_call,
+                       class_name: @tool_call_class,
+                       foreign_key: 'tool_call_id',
+                       optional: true,
+                       inverse_of: :result
 
-          delegate :tool_call?, :tool_result?, :tool_results, to: :to_llm
+            delegate :tool_call?, :tool_result?, :tool_results, to: :to_llm
+          end
         end
 
         def acts_as_tool_call(message_class: 'Message')
@@ -94,14 +96,16 @@ module RubyLLM
         self
       end
 
-      def with_tool(tool)
-        to_llm.with_tool(tool)
-        self
-      end
+      if RubyLLM.config.use_tool_calls
+        def with_tool(tool)
+          to_llm.with_tool(tool)
+          self
+        end
 
-      def with_tools(*tools)
-        to_llm.with_tools(*tools)
-        self
+        def with_tools(*tools)
+          to_llm.with_tools(*tools)
+          self
+        end
       end
 
       def with_model(model_id, provider: nil)
@@ -144,8 +148,10 @@ module RubyLLM
       def persist_message_completion(message) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
         return unless message
 
-        if message.tool_call_id
-          tool_call_id = self.class.tool_call_class.constantize.find_by(tool_call_id: message.tool_call_id).id
+        if RubyLLM.config.use_tool_calls
+          if message.tool_call_id
+            tool_call_id = self.class.tool_call_class.constantize.find_by(tool_call_id: message.tool_call_id).id
+          end
         end
 
         transaction do
@@ -153,19 +159,23 @@ module RubyLLM
             role: message.role,
             content: message.content,
             model_id: message.model_id,
-            tool_call_id: tool_call_id,
             input_tokens: message.input_tokens,
-            output_tokens: message.output_tokens
-          )
-          persist_tool_calls(message.tool_calls) if message.tool_calls.present?
+            output_tokens: message.output_tokens,
+            **{ tool_call_id: tool_call_id }.compact,
+            )
+          if RubyLLM.config.use_tool_calls
+            persist_tool_calls(message.tool_calls) if message.tool_calls.present?
+          end
         end
       end
 
-      def persist_tool_calls(tool_calls)
-        tool_calls.each_value do |tool_call|
-          attributes = tool_call.to_h
-          attributes[:tool_call_id] = attributes.delete(:id)
-          @message.tool_calls.create!(**attributes)
+      if RubyLLM.config.use_tool_calls
+        def persist_tool_calls(tool_calls)
+          tool_calls.each_value do |tool_call|
+            attributes = tool_call.to_h
+            attributes[:tool_call_id] = attributes.delete(:id)
+            @message.tool_calls.create!(**attributes)
+          end
         end
       end
     end
@@ -179,29 +189,39 @@ module RubyLLM
         RubyLLM::Message.new(
           role: role.to_sym,
           content: extract_content,
-          tool_calls: extract_tool_calls,
-          tool_call_id: extract_tool_call_id,
+          **(
+            if RubyLLM.config.use_tool_calls
+              {
+                tool_calls: extract_tool_calls,
+                tool_call_id: extract_tool_call_id,
+              }
+            else
+              {}
+            end
+          ),
           input_tokens: input_tokens,
           output_tokens: output_tokens,
           model_id: model_id
         )
       end
 
-      def extract_tool_calls
-        tool_calls.to_h do |tool_call|
-          [
-            tool_call.tool_call_id,
-            RubyLLM::ToolCall.new(
-              id: tool_call.tool_call_id,
-              name: tool_call.name,
-              arguments: tool_call.arguments
-            )
-          ]
+      if RubyLLM.config.use_tool_calls
+        def extract_tool_calls
+          tool_calls.to_h do |tool_call|
+            [
+              tool_call.tool_call_id,
+              RubyLLM::ToolCall.new(
+                id: tool_call.tool_call_id,
+                name: tool_call.name,
+                arguments: tool_call.arguments
+              )
+            ]
+          end
         end
-      end
 
-      def extract_tool_call_id
-        parent_tool_call&.tool_call_id
+        def extract_tool_call_id
+          parent_tool_call&.tool_call_id
+        end
       end
 
       def extract_content
