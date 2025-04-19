@@ -26,7 +26,12 @@ module RubyLLM
                    to: :to_llm
         end
 
-        def acts_as_message(chat_class: 'Chat', chat_foreign_key: 'chat_id', tool_call_class: 'ToolCall', touch_chat: false)
+        def acts_as_message(
+          chat_class: 'Chat',
+          chat_foreign_key: 'chat_id',
+          tool_call_class: 'ToolCall',
+          touch_chat: false
+        )
           include MessageMethods
 
           acts_as_message_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.use_tool_calls
@@ -146,7 +151,7 @@ module RubyLLM
         )
       end
 
-      def persist_message_completion(message) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      def persist_message_completion(message)
         return unless message
 
         transaction do
@@ -155,12 +160,13 @@ module RubyLLM
             content: message.content,
             model_id: message.model_id,
             input_tokens: message.input_tokens,
-            output_tokens: message.output_tokens,
+            output_tokens: message.output_tokens
           )
         end
       end
     end
 
+    # Methods mixed into chat models to handle tool calls.
     module ChatToolCallMethods
       include ChatMethods
 
@@ -176,7 +182,7 @@ module RubyLLM
 
       private
 
-      def persist_message_completion(message) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+      def persist_message_completion(message)
         return unless message&.tool_call_id
 
         transaction do
@@ -218,12 +224,13 @@ module RubyLLM
       end
     end
 
+    # Methods mixed into message models to handle tool calls.
     module MessageToolCallMethods
       def to_llm
         RubyLLM::Message.new(
           **super.to_h,
           tool_calls: extract_tool_calls,
-          tool_call_id: extract_tool_call_id,
+          tool_call_id: extract_tool_call_id
         )
       end
 
