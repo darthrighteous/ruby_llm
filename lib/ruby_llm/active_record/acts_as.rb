@@ -183,13 +183,15 @@ module RubyLLM
       private
 
       def persist_message_completion(message)
-        return unless message&.tool_call_id
+        return super unless message&.tool_call_id || message&.tool_calls
 
         transaction do
           super
 
-          tool_call_id = self.class.tool_call_class.constantize.find_by(tool_call_id: message.tool_call_id).id
-          @message.update!(tool_call_id: tool_call_id)
+          if message.tool_call_id
+            tool_call_id = self.class.tool_call_class.constantize.find_by(tool_call_id: message.tool_call_id).id
+            @message.update!(tool_call_id: tool_call_id)
+          end
 
           persist_tool_calls(message.tool_calls) if message.tool_calls.present?
         end
