@@ -34,7 +34,9 @@ module RubyLLM
         )
           include MessageMethods
 
-          acts_as_message_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.active_record_use_tool_calls
+          if RubyLLM.config.active_record_use_tool_calls
+            acts_as_message_with_tool_call(tool_call_class: tool_call_class)
+          end
 
           @chat_class = chat_class.to_s
           belongs_to :chat, class_name: @chat_class, touch: touch_chat, foreign_key: chat_foreign_key
