@@ -31,7 +31,7 @@ module RubyLLM
                   :retry_backoff_factor,
                   :retry_interval_randomness,
                   # Feature flags
-                  :use_tool_calls
+                  :active_record_use_tool_calls
 
     def initialize
       # Connection configuration
@@ -46,7 +46,7 @@ module RubyLLM
       @default_embedding_model = 'text-embedding-3-small'
       @default_image_model = 'dall-e-3'
 
-      @use_tool_calls = true
+      @active_record_use_tool_calls = true
     end
   end
 end

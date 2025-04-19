@@ -12,7 +12,7 @@ module RubyLLM
         def acts_as_chat(message_class: 'Message', tool_call_class: 'ToolCall')
           include ChatMethods
 
-          acts_as_chat_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.use_tool_calls
+          acts_as_chat_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.active_record_use_tool_calls
 
           @message_class = message_class.to_s
 
@@ -34,7 +34,7 @@ module RubyLLM
         )
           include MessageMethods
 
-          acts_as_message_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.use_tool_calls
+          acts_as_message_with_tool_call(tool_call_class: tool_call_class) if RubyLLM.config.active_record_use_tool_calls
 
           @chat_class = chat_class.to_s
           belongs_to :chat, class_name: @chat_class, touch: touch_chat, foreign_key: chat_foreign_key
